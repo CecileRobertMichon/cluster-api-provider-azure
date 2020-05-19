@@ -113,6 +113,10 @@ func (s *Service) Reconcile(ctx context.Context, spec interface{}) error {
 	nicConfig.LoadBalancerBackendAddressPools = &backendAddressPools
 
 	if nicSpec.PublicIPName != "" {
+		iperr = createNodePublicIP(nicSpec.PublicIPName)
+		if iperr != nil {
+			return errors.Wrap(naterr, "failed to create node public IP")
+		}
 		publicIP, err := s.PublicIPsClient.Get(ctx, s.Scope.ResourceGroup(), nicSpec.PublicIPName)
 		if err != nil {
 			return errors.Wrap(err, "failed to get publicIP")
@@ -159,7 +163,15 @@ func (s *Service) Delete(ctx context.Context, spec interface{}) error {
 	if err != nil && !azure.ResourceNotFound(err) {
 		return errors.Wrapf(err, "failed to delete inbound NAT rule %s in load balancer %s", NATRuleName, nicSpec.PublicLoadBalancerName)
 	}
-	klog.V(2).Infof("successfully deleted nic %s and NAT rule %s", nicSpec.Name, NATRuleName)
+	if nicSpec.PublicIPName != "" {
+		err = s.PublicIPsClient.Delete(ctx, s.Scope.ResourceGroup(), nicSpec.PublicIPName)
+		if err != nil && !azure.ResourceNotFound(err) {
+			return errors.Wrap(err, "failed to delete public IP %s", nicSpec.PublicIPName)
+		}
+		klog.V(2).Infof("successfully deleted IP %s", nicSpec.PublicIPName)
+	}
+
+	klog.V(2).Infof("successfully deleted NIC %s and NAT rule %s", nicSpec.Name, NATRuleName)
 	return nil
 }
 
@@ -206,4 +218,23 @@ func (s *Service) createInboundNatRule(ctx context.Context, lb network.LoadBalan
 	}
 	klog.V(3).Infof("Creating rule %s using port %d", ruleName, sshFrontendPort)
 	return s.InboundNATRulesClient.CreateOrUpdate(ctx, s.Scope.ResourceGroup(), to.String(lb.Name), ruleName, rule)
+}
+
+func (s *Service) createNodePublicIP(ctx context.Context, ipName string) error {
+	klog.V(2).Infof("creating public IP %s", ipName)
+
+	return s.PublicIPsClient.CreateOrUpdate(
+		ctx,
+		s.Scope.ResourceGroup(),
+		ipName,
+		network.PublicIPAddress{
+			Sku:      &network.PublicIPAddressSku{Name: network.PublicIPAddressSkuNameStandard},
+			Name:     to.StringPtr(ipName),
+			Location: to.StringPtr(s.Scope.Location()),
+			PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+				PublicIPAddressVersion:   network.IPv4,
+				PublicIPAllocationMethod: network.Static,
+			},
+		},
+	)
 }
