@@ -47,7 +47,7 @@ type azureClusterReconciler struct {
 	routeTableSvc    azure.Service
 	subnetsSvc       azure.Service
 	internalLBSvc    azure.Service
-	publicIPSvc      azure.Service
+	publicIPSvc      publicips.Service
 	publicLBSvc      azure.Service
 	availZoneSvc     azure.GetterService
 }
@@ -204,11 +204,7 @@ func (r *azureClusterReconciler) Reconcile() error {
 		return errors.Wrapf(err, "failed to reconcile control plane internal load balancer for cluster %s", r.scope.Name())
 	}
 
-	publicIPSpec := &publicips.Spec{
-		Name:    r.scope.Network().APIServerIP.Name,
-		DNSName: r.scope.Network().APIServerIP.DNSName,
-	}
-	if err := r.publicIPSvc.Reconcile(r.scope.Context, publicIPSpec); err != nil {
+	if err := r.publicIPSvc.Reconcile(r.scope.Context); err != nil {
 		return errors.Wrapf(err, "failed to reconcile control plane public ip for cluster %s", r.scope.Name())
 	}
 
@@ -281,10 +277,7 @@ func (r *azureClusterReconciler) deleteLB() error {
 			return errors.Wrapf(err, "failed to delete lb %s for cluster %s", azure.GeneratePublicLBName(r.scope.Name()), r.scope.Name())
 		}
 	}
-	publicIPSpec := &publicips.Spec{
-		Name: r.scope.Network().APIServerIP.Name,
-	}
-	if err := r.publicIPSvc.Delete(r.scope.Context, publicIPSpec); err != nil {
+	if err := r.publicIPSvc.Delete(r.scope.Context); err != nil {
 		if !azure.ResourceNotFound(err) {
 			return errors.Wrapf(err, "failed to delete public ip %s for cluster %s", r.scope.Network().APIServerIP.Name, r.scope.Name())
 		}

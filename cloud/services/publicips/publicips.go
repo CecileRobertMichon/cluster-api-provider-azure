@@ -27,37 +27,11 @@ import (
 	azure "sigs.k8s.io/cluster-api-provider-azure/cloud"
 )
 
-// Spec specification for public ip
-type Spec struct {
-	Name    string
-	DNSName string
-}
+// Reconcile creates/updates the cluster public IP.
+func (s *Service) Reconcile(ctx context.Context) error {
+	ipName := s.Scope.Network().APIServerIP.Name
+	klog.V(2).Infof("creating public IP %s", ipName)
 
-// Get provides information about a public ip.
-func (s *Service) Get(ctx context.Context, spec interface{}) (interface{}, error) {
-	publicIPSpec, ok := spec.(*Spec)
-	if !ok {
-		return network.PublicIPAddress{}, errors.New("invalid PublicIP Specification")
-	}
-	publicIP, err := s.Client.Get(ctx, s.Scope.ResourceGroup(), publicIPSpec.Name)
-	if err != nil && azure.ResourceNotFound(err) {
-		return nil, errors.Wrapf(err, "publicip %s not found", publicIPSpec.Name)
-	} else if err != nil {
-		return publicIP, err
-	}
-	return publicIP, nil
-}
-
-// Reconcile gets/creates/updates a public ip.
-func (s *Service) Reconcile(ctx context.Context, spec interface{}) error {
-	publicIPSpec, ok := spec.(*Spec)
-	if !ok {
-		return errors.New("invalid PublicIP Specification")
-	}
-	ipName := publicIPSpec.Name
-	klog.V(2).Infof("creating public ip %s", ipName)
-
-	// https://docs.microsoft.com/en-us/azure/load-balancer/load-balancer-standard-availability-zones#zone-redundant-by-default
 	err := s.Client.CreateOrUpdate(
 		ctx,
 		s.Scope.ResourceGroup(),
@@ -71,36 +45,33 @@ func (s *Service) Reconcile(ctx context.Context, spec interface{}) error {
 				PublicIPAllocationMethod: network.Static,
 				DNSSettings: &network.PublicIPAddressDNSSettings{
 					DomainNameLabel: to.StringPtr(strings.ToLower(ipName)),
-					Fqdn:            &publicIPSpec.DNSName,
+					Fqdn:            &s.Scope.Network().APIServerIP.DNSName,
 				},
 			},
 		},
 	)
 
 	if err != nil {
-		return errors.Wrap(err, "cannot create public ip")
+		return errors.Wrap(err, "cannot create public IP")
 	}
 
-	klog.V(2).Infof("successfully created public ip %s", ipName)
+	klog.V(2).Infof("successfully created public IP %s", ipName)
 	return nil
 }
 
-// Delete deletes the public ip with the provided scope.
-func (s *Service) Delete(ctx context.Context, spec interface{}) error {
-	publicIPSpec, ok := spec.(*Spec)
-	if !ok {
-		return errors.New("invalid PublicIP Specification")
-	}
-	klog.V(2).Infof("deleting public ip %s", publicIPSpec.Name)
-	err := s.Client.Delete(ctx, s.Scope.ResourceGroup(), publicIPSpec.Name)
+// Delete deletes the public IP with the provided scope.
+func (s *Service) Delete(ctx context.Context) error {
+	ipName := s.Scope.Network().APIServerIP.Name
+	klog.V(2).Infof("deleting public IP %s", ipName)
+	err := s.Client.Delete(ctx, s.Scope.ResourceGroup(), ipName)
 	if err != nil && azure.ResourceNotFound(err) {
 		// already deleted
 		return nil
 	}
 	if err != nil {
-		return errors.Wrapf(err, "failed to delete public ip %s in resource group %s", publicIPSpec.Name, s.Scope.ResourceGroup())
+		return errors.Wrapf(err, "failed to delete public IP %s in resource group %s", ipName, s.Scope.ResourceGroup())
 	}
 
-	klog.V(2).Infof("deleted public ip %s", publicIPSpec.Name)
+	klog.V(2).Infof("deleted public IP %s", ipName)
 	return err
 }
