@@ -166,8 +166,8 @@ $(GOLANGCI_LINT): ## Build golangci-lint from tools folder.
 $(KUSTOMIZE): ## Build kustomize from tools folder.
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/kustomize/kustomize/v3@v3.5.4
 
-$(MOCKGEN): ## Build mockgen from tools folder.
-	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golang/mock/mockgen@v1.4.3
+$(MOCKGEN): ## Build mockgen from tools folder. Using unreleased version until https://github.com/golang/mock/pull/405 is part of a release.
+	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) github.com/golang/mock/mockgen@8a3d5958550701de9e6650b84b75a118771e7b49
 
 $(RELEASE_NOTES): ## Build release notes
 	GOBIN=$(TOOLS_BIN_DIR) $(GO_INSTALL) sigs.k8s.io/cluster-api/hack/tools/release
