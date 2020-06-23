@@ -173,12 +173,10 @@ func (r *AzureMachineReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, ret
 	}
 
 	// Create the machine scope
-	machineScope, err := scope.NewMachineScope(scope.MachineScopeParams{
+	machineScope, err := clusterScope.NewMachineScope(scope.MachineScopeParams{
 		Logger:       logger,
 		Client:       r.Client,
-		Cluster:      cluster,
 		Machine:      machine,
-		AzureCluster: azureCluster,
 		AzureMachine: azureMachine,
 	})
 	if err != nil {
@@ -229,7 +227,7 @@ func (r *AzureMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		return reconcile.Result{}, err
 	}
 
-	if !machineScope.Cluster.Status.InfrastructureReady {
+	if !clusterScope.Cluster.Status.InfrastructureReady {
 		machineScope.Info("Cluster infrastructure is not ready yet")
 		return reconcile.Result{}, nil
 	}
@@ -241,9 +239,9 @@ func (r *AzureMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 	}
 
 	if machineScope.AzureMachine.Spec.AvailabilityZone.ID != nil {
-		message := "AvailavilityZone is deprecated, use FailureDomain instead"
+		message := "AvailabilityZone is deprecated, use FailureDomain instead"
 		machineScope.Info(message)
-		r.Recorder.Eventf(machineScope.AzureCluster, corev1.EventTypeWarning, "DeprecatedField", message)
+		r.Recorder.Eventf(clusterScope.AzureCluster, corev1.EventTypeWarning, "DeprecatedField", message)
 
 		// Set FailureDomain if its not set
 		if machineScope.AzureMachine.Spec.FailureDomain == nil {

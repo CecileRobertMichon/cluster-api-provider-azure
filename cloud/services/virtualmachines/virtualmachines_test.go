@@ -626,21 +626,6 @@ func TestReconcileVM(t *testing.T) {
 
 			client := fake.NewFakeClientWithScheme(scheme.Scheme, secret, cluster, &tc.machine)
 
-			machineScope, err := scope.NewMachineScope(scope.MachineScopeParams{
-				Client:  client,
-				Cluster: cluster,
-				Machine: &tc.machine,
-				AzureClients: scope.AzureClients{
-					Authorizer: autorest.NullAuthorizer{},
-				},
-				AzureMachine: azureMachine,
-				AzureCluster: tc.azureCluster,
-			})
-			g.Expect(err).NotTo(HaveOccurred())
-
-			machineScope.AzureMachine.Spec = *tc.machineConfig
-			tc.expect(vmMock.EXPECT(), interfaceMock.EXPECT(), publicIPMock.EXPECT(), roleAssignmentMock.EXPECT())
-
 			clusterScope, err := scope.NewClusterScope(scope.ClusterScopeParams{
 				AzureClients: scope.AzureClients{
 					Authorizer: autorest.NullAuthorizer{},
@@ -650,6 +635,19 @@ func TestReconcileVM(t *testing.T) {
 				AzureCluster: tc.azureCluster,
 			})
 			g.Expect(err).NotTo(HaveOccurred())
+
+			machineScope, err := clusterScope.NewMachineScope(scope.MachineScopeParams{
+				Client:  client,
+				Machine: &tc.machine,
+				AzureClients: scope.AzureClients{
+					Authorizer: autorest.NullAuthorizer{},
+				},
+				AzureMachine: azureMachine,
+			})
+			g.Expect(err).NotTo(HaveOccurred())
+
+			machineScope.AzureMachine.Spec = *tc.machineConfig
+			tc.expect(vmMock.EXPECT(), interfaceMock.EXPECT(), publicIPMock.EXPECT(), roleAssignmentMock.EXPECT())
 
 			s := &Service{
 				Scope:                 clusterScope,
@@ -669,6 +667,7 @@ func TestReconcileVM(t *testing.T) {
 				Image:      machineScope.AzureMachine.Spec.Image,
 				CustomData: *machineScope.Machine.Spec.Bootstrap.Data,
 			}
+
 			err = s.Reconcile(context.TODO(), vmSpec)
 			if tc.expectedError != "" {
 				g.Expect(err).To(HaveOccurred())
