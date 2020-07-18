@@ -29,7 +29,7 @@ export REGISTRY="${REGISTRY:-registry.local/fake}"
 
 # Cluster settings.
 export CLUSTER_NAME="${CLUSTER_NAME:-capz-test}"
-export AZURE_VNET_NAME=${CLUSTER_NAME}-vnet
+export AZURE_VNET_NAME-vnet
 export AZURE_ENVIRONMENT="AzurePublicCloud"
 
 # Azure settings.
@@ -68,7 +68,7 @@ export AZURE_JSON_B64=$(echo '{
     "securityGroupName": "${CLUSTER_NAME}-node-nsg",
     "location": "${AZURE_LOCATION}",
     "vmType": "vmss",
-    "vnetName": "${AZURE_VNET_NAME:=$CLUSTER_NAME-vnet}",
+    "vnetName": "${AZURE_VNET_NAME-vnet}",
     "vnetResourceGroup": "${CLUSTER_NAME}",
     "subnetName": "${CLUSTER_NAME}-node-subnet",
     "routeTableName": "${CLUSTER_NAME}-node-routetable",
