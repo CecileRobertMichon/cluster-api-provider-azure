@@ -679,7 +679,7 @@ func TestReconcileVM(t *testing.T) {
 				Size:          machineScope.AzureMachine.Spec.VMSize,
 				OSDisk:        machineScope.AzureMachine.Spec.OSDisk,
 				Image:         machineScope.AzureMachine.Spec.Image,
-				CustomData:    *machineScope.Machine.Spec.Bootstrap.Data,
+				CustomData:    *machineScope.Machine.Spec.Bootstrap.DataSecretName,
 				SpotVMOptions: machineScope.AzureMachine.Spec.SpotVMOptions,
 			}
 

@@ -19,6 +19,7 @@ package scope
 import (
 	"context"
 	"encoding/base64"
+	"github.com/Azure/go-autorest/autorest/to"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"github.com/go-logr/logr"
@@ -87,6 +88,25 @@ type MachineScope struct {
 	AzureMachine *infrav1.AzureMachine
 }
 
+// VMSpecs returns the VM specs.
+func (m *MachineScope) VMSpecs() []azure.VMSpec {
+	return []azure.VMSpec{
+		{
+			Name:                   m.Name(),
+			Role:                   m.Role(),
+			NICNames:               m.NICNames(),
+			SSHKeyData:             m.AzureMachine.Spec.SSHPublicKey,
+			Size:                   m.AzureMachine.Spec.VMSize,
+			OSDisk:                 m.AzureMachine.Spec.OSDisk,
+			DataDisks:              m.AzureMachine.Spec.DataDisks,
+			Zone:                   m.AvailabilityZone(),
+			Identity:               m.AzureMachine.Spec.Identity,
+			UserAssignedIdentities: m.AzureMachine.Spec.UserAssignedIdentities,
+			SpotVMOptions:          m.AzureMachine.Spec.SpotVMOptions,
+		},
+	}
+}
+
 // PublicIPSpec returns the public IP specs.
 func (m *MachineScope) PublicIPSpecs() []azure.PublicIPSpec {
 	var spec []azure.PublicIPSpec
@@ -147,6 +167,14 @@ func (m *MachineScope) NICSpecs() []azure.NICSpec {
 	return specs
 }
 
+func (m *MachineScope) NICNames() []string {
+	nicNames := make([]string, len(m.NICSpecs()))
+	for i, nic := range m.NICSpecs() {
+		nicNames[i] = nic.Name
+	}
+	return nicNames
+}
+
 // DiskSpecs returns the disk specs.
 func (m *MachineScope) DiskSpecs() []azure.DiskSpec {
 	spec := azure.DiskSpec{
@@ -180,13 +208,14 @@ func (m *MachineScope) Subnet() *infrav1.SubnetSpec {
 // AvailabilityZone returns the AzureMachine Availability Zone.
 // Priority for selecting the AZ is
 //   1) Machine.Spec.FailureDomain
-//   2) AzureMachine.Spec.FailureDomain
+//   2) AzureMachine.Spec.FailureDomain (This is to support deprecated AZ)
 //   3) AzureMachine.Spec.AvailabilityZone.ID (This is DEPRECATED)
 //   4) No AZ
 func (m *MachineScope) AvailabilityZone() string {
 	if m.Machine.Spec.FailureDomain != nil {
 		return *m.Machine.Spec.FailureDomain
 	}
+	// DEPRECATED: to support old clients
 	if m.AzureMachine.Spec.FailureDomain != nil {
 		return *m.AzureMachine.Spec.FailureDomain
 	}
@@ -243,8 +272,11 @@ func (m *MachineScope) SetProviderID(v string) {
 }
 
 // GetVMState returns the AzureMachine VM state.
-func (m *MachineScope) GetVMState() *infrav1.VMState {
-	return m.AzureMachine.Status.VMState
+func (m *MachineScope) GetVMState() infrav1.VMState {
+	if  m.AzureMachine.Status.VMState != nil {
+		return *m.AzureMachine.Status.VMState
+	}
+	return ""
 }
 
 // SetVMState sets the AzureMachine VM state.
@@ -299,11 +331,12 @@ func (m *MachineScope) Close(ctx context.Context) error {
 // the value from AzureMachine takes precedence.
 func (m *MachineScope) AdditionalTags() infrav1.Tags {
 	tags := make(infrav1.Tags)
-
 	// Start with the cluster-wide tags...
 	tags.Merge(m.ClusterDescriber.AdditionalTags())
 	// ... and merge in the Machine's
 	tags.Merge(m.AzureMachine.Spec.AdditionalTags)
+	// Set the cloud provider tag
+	tags[infrav1.ClusterAzureCloudProviderTagKey(m.ClusterName())] = string(infrav1.ResourceLifecycleOwned)
 
 	return tags
 }
@@ -324,4 +357,14 @@ func (m *MachineScope) GetBootstrapData(ctx context.Context) (string, error) {
 		return "", errors.New("error retrieving bootstrap data: secret value key is missing")
 	}
 	return base64.StdEncoding.EncodeToString(value), nil
+}
+
+// Pick image from the machine configuration, or use a default one.
+func (m *MachineScope) GetVMImage() (*infrav1.Image, error) {
+	// Use custom Marketplace image, Image ID or a Shared Image Gallery image if provided
+	if m.AzureMachine.Spec.Image != nil {
+		return m.AzureMachine.Spec.Image, nil
+	}
+	m.Info("No image specified for machine, using default", "machine", m.AzureMachine.GetName())
+	return azure.GetDefaultUbuntuImage(to.String(m.Machine.Spec.Version))
 }

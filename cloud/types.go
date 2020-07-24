@@ -92,3 +92,18 @@ type RoleAssignmentSpec struct {
 	MachineName string
 	UUID        string
 }
+
+// VMSpec defines the specification for a Virtual Machine.
+type VMSpec struct {
+	Name                   string
+	Role                   string
+	NICNames               []string
+	SSHKeyData             string
+	Size                   string
+	Zone                   string
+	Identity               infrav1.VMIdentity
+	OSDisk                 infrav1.OSDisk
+	DataDisks              []infrav1.DataDisk
+	UserAssignedIdentities []infrav1.UserAssignedIdentity
+	SpotVMOptions          *infrav1.SpotVMOptions
+}
