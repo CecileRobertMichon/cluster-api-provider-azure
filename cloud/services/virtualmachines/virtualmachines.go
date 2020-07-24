@@ -300,7 +300,7 @@ func (s *Service) generateStorageProfile(ctx context.Context, vmSpec azure.VMSpe
 
 	// enable ephemeral OS
 	if vmSpec.OSDisk.DiffDiskSettings != nil {
-		sku, err := s.ResourceSKUCache.Get(ctx, vmSpec.Size, resourceskus.VirtualMachines)
+		sku, err := s.Scope.GetSKU(ctx, vmSpec.Size, string(resourceskus.VirtualMachines))
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to get find vm sku %s in compute api", vmSpec.Size)
 		}

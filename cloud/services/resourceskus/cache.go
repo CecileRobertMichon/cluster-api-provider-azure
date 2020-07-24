@@ -84,7 +84,7 @@ func (c *Cache) refresh(ctx context.Context, location string) error {
 // enhancing this function to handle restrictions (e.g. SKU not
 // supported in region), which is why it returns an error and not a
 // boolean.
-func (c *Cache) Get(ctx context.Context, name string, kind Kind) (SKU, error) {
+func (c *Cache) GetSKU(ctx context.Context, name string, kind Kind) (SKU, error) {
 	if c.data == nil {
 		if err := c.refresh(ctx, c.location); err != nil {
 			return SKU{}, err

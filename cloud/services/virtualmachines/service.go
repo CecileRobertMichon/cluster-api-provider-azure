@@ -24,13 +24,13 @@ import (
 	azure "sigs.k8s.io/cluster-api-provider-azure/cloud"
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/networkinterfaces"
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/publicips"
-	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/resourceskus"
 )
 
 // VMScope defines the scope interface for a virtual machines service.
 type VMScope interface {
 	azure.ClusterDescriber
 	logr.Logger
+	azure.ResourceSKUCache
 	VMSpecs() []azure.VMSpec
 	GetBootstrapData(ctx context.Context) (string, error)
 	GetVMImage() (*infrav1.Image, error)
@@ -40,22 +40,20 @@ type VMScope interface {
 	SetVMState(infrav1.VMState)
 }
 
-// Service provides operations on azure resources
+// Service provides operations on azure resources.
 type Service struct {
 	Scope VMScope
 	Client
 	InterfacesClient networkinterfaces.Client
 	PublicIPsClient  publicips.Client
-	ResourceSKUCache *resourceskus.Cache
 }
 
 // NewService creates a new service.
-func NewService(scope VMScope, skuCache *resourceskus.Cache) *Service {
+func NewService(scope VMScope) *Service {
 	return &Service{
 		Scope:            scope,
 		Client:           NewClient(scope),
 		InterfacesClient: networkinterfaces.NewClient(scope),
 		PublicIPsClient:  publicips.NewClient(scope),
-		ResourceSKUCache: skuCache,
 	}
 }

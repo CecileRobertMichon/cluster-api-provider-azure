@@ -84,7 +84,7 @@ func (s *Service) Reconcile(ctx context.Context, spec interface{}) error {
 	}
 	vmssSpec.AdditionalTags[infrav1.ClusterAzureCloudProviderTagKey(vmssSpec.MachinePoolName)] = string(infrav1.ResourceLifecycleOwned)
 
-	sku, err := s.ResourceSKUCache.Get(ctx, vmssSpec.Sku, resourceskus.VirtualMachines)
+	sku, err := s.ResourceSKUCache.GetSKU(ctx, vmssSpec.Sku, resourceskus.VirtualMachines)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get find vm sku %s in compute api", vmssSpec.Sku)
 	}

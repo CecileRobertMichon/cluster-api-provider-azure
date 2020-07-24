@@ -20,12 +20,11 @@ import (
 	"context"
 	"encoding/base64"
 	"github.com/Azure/go-autorest/autorest/to"
-	"k8s.io/apimachinery/pkg/util/uuid"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/klog/klogr"
 	"k8s.io/utils/pointer"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
@@ -43,6 +42,7 @@ type MachineScopeParams struct {
 	Client           client.Client
 	Logger           logr.Logger
 	ClusterDescriber azure.ClusterDescriber
+	Cache            azure.ResourceSKUCache
 	Machine          *clusterv1.Machine
 	AzureMachine     *infrav1.AzureMachine
 }
@@ -59,6 +59,12 @@ func NewMachineScope(params MachineScopeParams) (*MachineScope, error) {
 	if params.AzureMachine == nil {
 		return nil, errors.New("azure machine is required when creating a MachineScope")
 	}
+	if params.ClusterDescriber == nil {
+		return nil, errors.New("cluster describer is required when creating a MachineScope")
+	}
+	if params.Cache == nil {
+		return nil, errors.New("cache is required when creating a MachineScope")
+	}
 	if params.Logger == nil {
 		params.Logger = klogr.New()
 	}
@@ -67,6 +73,7 @@ func NewMachineScope(params MachineScopeParams) (*MachineScope, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init patch helper")
 	}
+
 	return &MachineScope{
 		client:           params.Client,
 		Machine:          params.Machine,
@@ -74,6 +81,7 @@ func NewMachineScope(params MachineScopeParams) (*MachineScope, error) {
 		Logger:           params.Logger,
 		patchHelper:      helper,
 		ClusterDescriber: params.ClusterDescriber,
+		ResourceSKUCache: params.Cache,
 	}, nil
 }
 
@@ -84,6 +92,7 @@ type MachineScope struct {
 	patchHelper *patch.Helper
 
 	azure.ClusterDescriber
+	azure.ResourceSKUCache
 	Machine      *clusterv1.Machine
 	AzureMachine *infrav1.AzureMachine
 }
@@ -273,7 +282,7 @@ func (m *MachineScope) SetProviderID(v string) {
 
 // GetVMState returns the AzureMachine VM state.
 func (m *MachineScope) GetVMState() infrav1.VMState {
-	if  m.AzureMachine.Status.VMState != nil {
+	if m.AzureMachine.Status.VMState != nil {
 		return *m.AzureMachine.Status.VMState
 	}
 	return ""

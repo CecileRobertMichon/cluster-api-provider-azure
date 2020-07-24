@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/inboundnatrules"
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/loadbalancers"
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/publicips"
-	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/resourceskus"
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/subnets"
 )
 
@@ -30,6 +29,7 @@ import (
 type NICScope interface {
 	azure.ClusterDescriber
 	logr.Logger
+	azure.ResourceSKUCache
 	NICSpecs() []azure.NICSpec
 }
 
@@ -41,11 +41,10 @@ type Service struct {
 	LoadBalancersClient   loadbalancers.Client
 	PublicIPsClient       publicips.Client
 	InboundNATRulesClient inboundnatrules.Client
-	ResourceSKUCache      *resourceskus.Cache
 }
 
 // NewService creates a new service.
-func NewService(scope NICScope, skuCache *resourceskus.Cache) *Service {
+func NewService(scope NICScope) *Service {
 	return &Service{
 		Scope:                 scope,
 		Client:                NewClient(scope),
@@ -53,6 +52,5 @@ func NewService(scope NICScope, skuCache *resourceskus.Cache) *Service {
 		LoadBalancersClient:   loadbalancers.NewClient(scope),
 		PublicIPsClient:       publicips.NewClient(scope),
 		InboundNATRulesClient: inboundnatrules.NewClient(scope),
-		ResourceSKUCache:      skuCache,
 	}
 }

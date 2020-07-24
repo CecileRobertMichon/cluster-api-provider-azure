@@ -90,7 +90,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 
 		if nicSpec.AcceleratedNetworking == nil {
 			// set accelerated networking to the capability of the VMSize
-			sku, err := s.ResourceSKUCache.Get(ctx, nicSpec.VMSize, resourceskus.VirtualMachines)
+			sku, err := s.Scope.GetSKU(ctx, nicSpec.VMSize, string(resourceskus.VirtualMachines))
 			if err != nil {
 				return errors.Wrapf(err, "failed to get find vm sku %s in compute api", nicSpec.VMSize)
 			}

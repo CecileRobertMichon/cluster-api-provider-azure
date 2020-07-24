@@ -18,7 +18,7 @@ package azure
 
 import (
 	"context"
-
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2020-06-01/compute"
 	"github.com/Azure/go-autorest/autorest"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha3"
 )
@@ -32,17 +32,9 @@ type Service interface {
 
 // OldService is a generic interface for services that have not yet been refactored.
 // Once all services have been converted to use Service, this should be removed.
-// Example: virtualnetworks service would offer Reconcile/Delete methods.
 type OldService interface {
 	Reconcile(ctx context.Context, spec interface{}) error
 	Delete(ctx context.Context, spec interface{}) error
-}
-
-// GetterService is a temporary interface used by components which still require Get methods.
-// Once all components move to storing provider information within the relevant
-// Cluster/Machine specs, this interface should be removed.
-type GetterService interface {
-	Get(ctx context.Context, spec interface{}) (interface{}, error)
 }
 
 // CredentialGetter is a Service which knows how to retrieve credentials for an Azure
@@ -50,6 +42,11 @@ type GetterService interface {
 type CredentialGetter interface {
 	Service
 	GetCredentials(ctx context.Context, group string, cluster string) ([]byte, error)
+}
+
+type ResourceSKUCache interface {
+	GetSKU(context.Context, string, string) (compute.ResourceSku, error)
+	//Map(context.Context, func(resourceskus.SKU)) error
 }
 
 // Authorizer is an interface which can get the subscription ID, base URI, and authorizer for an Azure service.

@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/inboundnatrules"
-	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/resourceskus"
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/roleassignments"
 
 	"github.com/pkg/errors"
@@ -31,29 +30,22 @@ import (
 	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/virtualmachines"
 )
 
-// azureMachineService is the group  of services called by the AzureMachine controller
+// azureMachineService is the group of services called by the AzureMachine controller
 type azureMachineService struct {
-	machineScope         *scope.MachineScope
-	clusterScope         *scope.ClusterScope
 	networkInterfacesSvc azure.Service
 	inboundNatRulesSvc   azure.Service
 	virtualMachinesSvc   azure.Service
 	roleAssignmentsSvc   azure.Service
 	disksSvc             azure.Service
 	publicIPsSvc         azure.Service
-	skuCache             *resourceskus.Cache
 }
 
 // newAzureMachineService populates all the services based on input scope
-func newAzureMachineService(machineScope *scope.MachineScope, clusterScope *scope.ClusterScope) *azureMachineService {
-	cache := resourceskus.NewCache(clusterScope, clusterScope.Location())
-
+func newAzureMachineService(machineScope *scope.MachineScope) *azureMachineService {
 	return &azureMachineService{
-		machineScope:         machineScope,
-		clusterScope:         clusterScope,
 		inboundNatRulesSvc:   inboundnatrules.NewService(machineScope),
-		networkInterfacesSvc: networkinterfaces.NewService(machineScope, cache),
-		virtualMachinesSvc:   virtualmachines.NewService(machineScope, cache),
+		networkInterfacesSvc: networkinterfaces.NewService(machineScope),
+		virtualMachinesSvc:   virtualmachines.NewService(machineScope),
 		roleAssignmentsSvc:   roleassignments.NewService(machineScope),
 		disksSvc:             disks.NewService(machineScope),
 		publicIPsSvc:         publicips.NewService(machineScope),
@@ -104,7 +96,7 @@ func (s *azureMachineService) Delete(ctx context.Context) error {
 	}
 
 	if err := s.disksSvc.Delete(ctx); err != nil {
-		return errors.Wrapf(err, "failed to delete OS disk of machine %s", s.machineScope.Name())
+		return errors.Wrap(err, "failed to delete OS disk")
 	}
 
 	return nil
@@ -116,7 +108,7 @@ func (s *azureMachineService) DeleteVM(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to delete machine")
 	}
 	if err := s.disksSvc.Delete(ctx); err != nil {
-		return errors.Wrapf(err, "failed to delete OS disk of machine %s", s.machineScope.Name())
+		return errors.Wrap(err, "failed to delete OS disk")
 	}
 	return nil
 }

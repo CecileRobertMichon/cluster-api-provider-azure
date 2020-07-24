@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"sigs.k8s.io/cluster-api-provider-azure/cloud/services/resourceskus"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -173,8 +174,10 @@ func (r *AzureMachineReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, ret
 	})
 	if err != nil {
 		r.Recorder.Eventf(azureCluster, corev1.EventTypeWarning, "Error creating the cluster scope", err.Error())
-		return reconcile.Result{}, err
+		return reconcile.Result{}, errors.Wrap(err, "failed to create cluster scope")
 	}
+
+	cache := resourceskus.NewCache(clusterScope, clusterScope.Location())
 
 	// Create the machine scope
 	machineScope, err := scope.NewMachineScope(scope.MachineScopeParams{
@@ -183,10 +186,11 @@ func (r *AzureMachineReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, ret
 		Machine:          machine,
 		AzureMachine:     azureMachine,
 		ClusterDescriber: clusterScope,
+		Cache:            cache,
 	})
 	if err != nil {
 		r.Recorder.Eventf(azureMachine, corev1.EventTypeWarning, "Error creating the machine scope", err.Error())
-		return reconcile.Result{}, errors.Errorf("failed to create scope: %+v", err)
+		return reconcile.Result{}, errors.Wrap(err, "failed to create machine scope")
 	}
 
 	// Always close the scope when exiting this function so we can persist any AzureMachine changes.
@@ -251,7 +255,7 @@ func (r *AzureMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		}
 	}
 
-	ams := newAzureMachineService(machineScope, clusterScope)
+	ams := newAzureMachineService(machineScope)
 
 	err := ams.Reconcile(ctx)
 	if err != nil {
