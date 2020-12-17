@@ -166,6 +166,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 			UpgradePolicy: &compute.UpgradePolicy{
 				Mode: compute.UpgradeModeManual,
 			},
+			DoNotRunExtensionsOnOverprovisionedVMs: to.BoolPtr(true),
 			VirtualMachineProfile: &compute.VirtualMachineScaleSetVMProfile{
 				OsProfile:       osProfile,
 				StorageProfile:  storageProfile,

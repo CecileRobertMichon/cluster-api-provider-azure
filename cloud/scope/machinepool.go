@@ -338,6 +338,22 @@ func (m *MachinePoolScope) RoleAssignmentSpecs() []azure.RoleAssignmentSpec {
 	return []azure.RoleAssignmentSpec{}
 }
 
+// VMSSExtensionSpecs returns the vmss extension specs.
+func (m *MachinePoolScope) VMSSExtensionSpecs() []azure.VMSSExtensionSpec {
+	name, publisher, version := azure.GetBootstrappingVMExtension(m.AzureMachinePool.Spec.Template.OSDisk.OSType, m.CloudEnvironment())
+	if name != "" {
+		return []azure.VMSSExtensionSpec{
+			{
+				Name:         name,
+				ScaleSetName: m.Name(),
+				Publisher:    publisher,
+				Version:      version,
+			},
+		}
+	}
+	return []azure.VMSSExtensionSpec{}
+}
+
 func (m *MachinePoolScope) getNodeStatusByProviderID(ctx context.Context, providerIDList []string) (map[string]*NodeStatus, error) {
 	nodeStatusMap := map[string]*NodeStatus{}
 	for _, id := range providerIDList {
