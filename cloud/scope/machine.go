@@ -240,6 +240,9 @@ func (m *MachineScope) VMExtensionSpecs() []azure.VMExtensionSpec {
 				VMName:    m.Name(),
 				Publisher: publisher,
 				Version:   version,
+				ProtectedSettings: map[string]string{
+					"commandToExecute": azure.BootstrapExtensionCommand,
+				},
 			},
 		}
 	}

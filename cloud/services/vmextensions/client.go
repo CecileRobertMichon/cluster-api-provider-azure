@@ -27,6 +27,7 @@ import (
 
 // Client wraps go-sdk
 type client interface {
+	Get(context.Context, string, string, string) (compute.VirtualMachineExtension, error)
 	CreateOrUpdate(context.Context, string, string, string, compute.VirtualMachineExtension) error
 	Delete(context.Context, string, string, string) error
 }
@@ -51,20 +52,29 @@ func newVirtualMachineExtensionsClient(subscriptionID string, baseURI string, au
 	return vmextensionsClient
 }
 
+// Get gets the virtual machine extension.
+func (ac *azureClient) Get(ctx context.Context, resourceGroupName, vmName, name string) (compute.VirtualMachineExtension, error) {
+	ctx, span := tele.Tracer().Start(ctx, "vmextensions.AzureClient.Get")
+	defer span.End()
+
+	return ac.vmextensions.Get(ctx, resourceGroupName, vmName, name, "")
+}
+
+
 // CreateOrUpdate creates or updates the virtual machine extension
 func (ac *azureClient) CreateOrUpdate(ctx context.Context, resourceGroupName, vmName, name string, parameters compute.VirtualMachineExtension) error {
 	ctx, span := tele.Tracer().Start(ctx, "vmextensions.AzureClient.CreateOrUpdate")
 	defer span.End()
 
-	future, err := ac.vmextensions.CreateOrUpdate(ctx, resourceGroupName, vmName, name, parameters)
-	if err != nil {
-		return err
-	}
-	err = future.WaitForCompletionRef(ctx, ac.vmextensions.Client)
-	if err != nil {
-		return err
-	}
-	_, err = future.Result(ac.vmextensions)
+	_, err := ac.vmextensions.CreateOrUpdate(ctx, resourceGroupName, vmName, name, parameters)
+	//if err != nil {
+	//	return err
+	//}
+	//err = future.WaitForCompletionRef(ctx, ac.vmextensions.Client)
+	//if err != nil {
+	//	return err
+	//}
+	//_, err = future.Result(ac.vmextensions)
 	return err
 }
 

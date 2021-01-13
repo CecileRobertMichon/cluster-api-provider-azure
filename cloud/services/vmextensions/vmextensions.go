@@ -55,27 +55,44 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	defer span.End()
 
 	for _, extensionSpec := range s.Scope.VMExtensionSpecs() {
-		s.Scope.V(2).Info("creating VM extension", "vm extension", extensionSpec.Name)
-		err := s.client.CreateOrUpdate(
-			ctx,
-			s.Scope.ResourceGroup(),
-			extensionSpec.VMName,
-			extensionSpec.Name,
-			compute.VirtualMachineExtension{
-				VirtualMachineExtensionProperties: &compute.VirtualMachineExtensionProperties{
-					Publisher:          to.StringPtr(extensionSpec.Publisher),
-					Type:               to.StringPtr(extensionSpec.Name),
-					TypeHandlerVersion: to.StringPtr(extensionSpec.Version),
-					Settings:           nil,
-					ProtectedSettings:  nil,
-				},
-				Location: to.StringPtr(s.Scope.Location()),
-			},
-		)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create VM extension %s on VM %s in resource group %s", extensionSpec.Name, extensionSpec.VMName, s.Scope.ResourceGroup())
+		existing, err := s.client.Get(ctx, s.Scope.ResourceGroup(), extensionSpec.VMName, extensionSpec.Name)
+		if err == nil {
+			s.Scope.Info("extension provisioning state is", "state", to.String(existing.ProvisioningState))
 		}
-		s.Scope.V(2).Info("successfully created VM extension", "vm extension", extensionSpec.Name)
+		switch {
+		case err == nil && compute.ProvisioningState(to.String(existing.ProvisioningState)) == compute.ProvisioningStateCreating:
+			s.Scope.Info("extension provisioning state creating", "vm extension", extensionSpec.Name)
+			return errors.New("extension still provisioning")
+		case err == nil && compute.ProvisioningState(to.String(existing.ProvisioningState)) == compute.ProvisioningStateSucceeded:
+			s.Scope.Info("extension provisioning state succeeded", "vm extension", extensionSpec.Name)
+		case err == nil && compute.ProvisioningState(to.String(existing.ProvisioningState)) == compute.ProvisioningStateFailed:
+			s.Scope.Info("extension provisioning state failed", "vm extension", extensionSpec.Name)
+			return errors.New("extension state failed")
+		case err != nil && azure.ResourceNotFound(err):
+			s.Scope.Info("creating VM extension", "vm extension", extensionSpec.Name)
+			s.Scope.V(2).Info("creating VM extension", "vm extension", extensionSpec.Name)
+			err := s.client.CreateOrUpdate(
+				ctx,
+				s.Scope.ResourceGroup(),
+				extensionSpec.VMName,
+				extensionSpec.Name,
+				compute.VirtualMachineExtension{
+					VirtualMachineExtensionProperties: &compute.VirtualMachineExtensionProperties{
+						Publisher:          to.StringPtr(extensionSpec.Publisher),
+						Type:               to.StringPtr(extensionSpec.Name),
+						TypeHandlerVersion: to.StringPtr(extensionSpec.Version),
+						Settings:           nil,
+						ProtectedSettings:  extensionSpec.ProtectedSettings,
+					},
+					Location: to.StringPtr(s.Scope.Location()),
+				},
+			)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create VM extension %s on VM %s in resource group %s", extensionSpec.Name, extensionSpec.VMName, s.Scope.ResourceGroup())
+			}
+			s.Scope.Info("successfully created VM extension", "vm extension", extensionSpec.Name)
+			s.Scope.V(2).Info("successfully created VM extension", "vm extension", extensionSpec.Name)
+		}
 	}
 	return nil
 }

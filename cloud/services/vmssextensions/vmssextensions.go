@@ -67,7 +67,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 					Type:               to.StringPtr(extensionSpec.Name),
 					TypeHandlerVersion: to.StringPtr(extensionSpec.Version),
 					Settings:           nil,
-					ProtectedSettings:  nil,
+					ProtectedSettings:  extensionSpec.ProtectedSettings,
 				},
 			},
 		)
