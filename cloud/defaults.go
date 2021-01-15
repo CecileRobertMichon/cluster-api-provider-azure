@@ -61,7 +61,7 @@ const (
 )
 
 const (
-	BootstrapExtensionCommand = "for i in $(seq 1 240); do test -f /run/bootstrap-success.complete && break; if [ $i -eq 240 ]; then return 1; else sleep 5; fi; done"
+	BootstrapExtensionCommand = "for i in $(seq 1 240); do test -f /run/cluster-api/bootstrap-success.complete && break; if [ $i -eq 240 ]; then return 1; else sleep 5; fi; done"
 )
 
 // GenerateBackendAddressPoolName generates a load balancer backend address pool name.
