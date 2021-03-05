@@ -110,3 +110,15 @@ spec:
 
 
 Finally, deploy your manifests and check that your images where deployed by connecting to the workload cluster and running `kubectl describe -n kube-system <kube-controller-manager-pod-id>`.
+
+## Testing the out-of-tree cloud provider
+
+To test changes made to the [Azure cloud provider](https://github.com/kubernetes-sigs/cloud-provider-azure), first build and push images for cloud-controller-manager and/or cloud-node-manager from the root of the cloud-provider-azure repo.
+
+Then, update the images in [cloud-controller-manager.yaml](../../templates/flavors/external-cloud-provider/cloud-controller-manager.yaml) and [cloud-node-manager.yaml](../../templates/flavors/external-cloud-provider/cloud-controller-manager.yaml). Make sure to run `make generate-flavors` to regenerate the templates.
+
+Finally, use the `external-cloud-provider` flavor to create a cluster:
+
+```bash
+CLUSTER_TEMPLATE=cluster-template-external-cloud-provider.yaml make create-workload-cluster
+```
