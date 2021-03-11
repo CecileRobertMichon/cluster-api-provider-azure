@@ -368,6 +368,9 @@ func (m *MachinePoolScope) VMSSExtensionSpecs() []azure.VMSSExtensionSpec {
 				ScaleSetName: m.Name(),
 				Publisher:    publisher,
 				Version:      version,
+				ProtectedSettings: map[string]string{
+					"commandToExecute": azure.BootstrapExtensionCommand,
+				},
 			},
 		}
 	}

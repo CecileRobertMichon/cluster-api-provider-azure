@@ -241,6 +241,9 @@ func (m *MachineScope) VMExtensionSpecs() []azure.VMExtensionSpec {
 				VMName:    m.Name(),
 				Publisher: publisher,
 				Version:   version,
+				ProtectedSettings: map[string]string{
+					"commandToExecute": azure.BootstrapExtensionCommand,
+				},
 			},
 		}
 	}
@@ -380,6 +383,15 @@ func (m *MachineScope) SetFailureMessage(v error) {
 // SetFailureReason sets the AzureMachine status failure reason.
 func (m *MachineScope) SetFailureReason(v capierrors.MachineStatusError) {
 	m.AzureMachine.Status.FailureReason = &v
+}
+
+// SetCondition sets a condition on the AzureMachine.
+func (m *MachineScope) SetCondition(condition clusterv1.ConditionType, reason string, severity clusterv1.ConditionSeverity, value bool) {
+	if value {
+		conditions.MarkTrue(m.AzureMachine, condition)
+	} else {
+		conditions.MarkFalse(m.AzureMachine, condition, reason, severity, "")
+	}
 }
 
 // SetAnnotation sets a key value annotation on the AzureMachine.

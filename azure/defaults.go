@@ -65,6 +65,11 @@ const (
 	ControlPlaneNodeGroup = "control-plane"
 )
 
+const (
+	// BootstrapExtensionCommand is the command that runs on the Boostrap VM extension to check for bootstrap success
+	BootstrapExtensionCommand = "for i in $(seq 1 240); do test -f /run/cluster-api/bootstrap-success.complete && break; if [ $i -eq 240 ]; then return 1; else sleep 5; fi; done"
+)
+
 // GenerateBackendAddressPoolName generates a load balancer backend address pool name.
 func GenerateBackendAddressPoolName(lbName string) string {
 	return fmt.Sprintf("%s-%s", lbName, "backendPool")

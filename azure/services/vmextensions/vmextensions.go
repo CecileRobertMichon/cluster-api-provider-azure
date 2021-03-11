@@ -18,11 +18,13 @@ package vmextensions
 
 import (
 	"context"
-
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha4"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"time"
 
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
@@ -33,6 +35,7 @@ type VMExtensionScope interface {
 	logr.Logger
 	azure.ClusterDescriber
 	VMExtensionSpecs() []azure.VMExtensionSpec
+	SetCondition(clusterv1.ConditionType, string, clusterv1.ConditionSeverity, bool)
 }
 
 // Service provides operations on azure resources
@@ -55,13 +58,29 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	defer span.End()
 
 	for _, extensionSpec := range s.Scope.VMExtensionSpecs() {
-		if _, err := s.client.Get(ctx, s.Scope.ResourceGroup(), extensionSpec.VMName, extensionSpec.Name); err == nil {
-			// check for the extension and don't update if already exists
-			// TODO: set conditions based on extension status
+		if existing, err := s.client.Get(ctx, s.Scope.ResourceGroup(), extensionSpec.VMName, extensionSpec.Name); err == nil {
+			// check the extension status and set the associated conditions.
+			switch compute.ProvisioningState(to.String(existing.ProvisioningState)) {
+			case compute.ProvisioningStateSucceeded:
+				s.Scope.V(4).Info("extension provisioning state is succeeded", "vm extension", extensionSpec.Name, "virtual machine", extensionSpec.VMName)
+				s.Scope.SetCondition(infrav1.BootstrapSucceededCondition, "", "", true)
+			case compute.ProvisioningStateCreating:
+				s.Scope.V(4).Info("extension provisioning state is creating", "vm extension", extensionSpec.Name, "virtual machine", extensionSpec.VMName)
+				s.Scope.SetCondition(infrav1.BootstrapSucceededCondition, infrav1.BootstrapInProgressReason, clusterv1.ConditionSeverityInfo, false)
+				return azure.WithTransientError(errors.New("extension still provisioning"), 30*time.Second)
+			case compute.ProvisioningStateFailed:
+				s.Scope.V(4).Info("extension provisioning state is failed", "vm extension", extensionSpec.Name, "virtual machine", extensionSpec.VMName)
+				s.Scope.SetCondition(infrav1.BootstrapSucceededCondition, infrav1.BootstrapFailedReason, clusterv1.ConditionSeverityError, false)
+				return azure.WithTerminalError(errors.New("extension state failed"))
+			}
+			// if the extension already exists, do not update it.
 			continue
+		} else if !azure.ResourceNotFound(err) {
+			return errors.Wrapf(err, "failed to get vm extension %s on vm %s", extensionSpec.Name, extensionSpec.VMName)
 		}
+
 		s.Scope.V(2).Info("creating VM extension", "vm extension", extensionSpec.Name)
-		err := s.client.CreateOrUpdate(
+		err := s.client.CreateOrUpdateAsync(
 			ctx,
 			s.Scope.ResourceGroup(),
 			extensionSpec.VMName,
@@ -72,7 +91,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 					Type:               to.StringPtr(extensionSpec.Name),
 					TypeHandlerVersion: to.StringPtr(extensionSpec.Version),
 					Settings:           nil,
-					ProtectedSettings:  nil,
+					ProtectedSettings:  extensionSpec.ProtectedSettings,
 				},
 				Location: to.StringPtr(s.Scope.Location()),
 			},
