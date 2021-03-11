@@ -18,12 +18,13 @@ package vmssextensions
 
 import (
 	"context"
-
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2020-06-30/compute"
 	"github.com/Azure/go-autorest/autorest/to"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha4"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/util/tele"
 )
@@ -33,6 +34,7 @@ type VMSSExtensionScope interface {
 	logr.Logger
 	azure.ClusterDescriber
 	VMSSExtensionSpecs() []azure.VMSSExtensionSpec
+	SetCondition(clusterv1.ConditionType, string, clusterv1.ConditionSeverity, bool)
 }
 
 // Service provides operations on azure resources
@@ -55,32 +57,26 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	defer span.End()
 
 	for _, extensionSpec := range s.Scope.VMSSExtensionSpecs() {
-		if _, err := s.client.Get(ctx, s.Scope.ResourceGroup(), extensionSpec.ScaleSetName, extensionSpec.Name); err == nil {
-			// check for the extension and don't update if already exists
-			// TODO: set conditions based on extension status
-			continue
+		if existing, err := s.client.Get(ctx, s.Scope.ResourceGroup(), extensionSpec.ScaleSetName, extensionSpec.Name); err == nil {
+			// check the extension status and set the associated conditions.
+			switch compute.ProvisioningState(to.String(existing.ProvisioningState)) {
+			case compute.ProvisioningStateSucceeded:
+				s.Scope.V(4).Info("extension provisioning state is succeeded", "vm extension", extensionSpec.Name, "scale set", extensionSpec.ScaleSetName)
+				s.Scope.SetCondition(infrav1.BootstrapSucceededCondition, "", "", true)
+			case compute.ProvisioningStateCreating:
+				s.Scope.V(4).Info("extension provisioning state is creating", "vm extension", extensionSpec.Name, "scale set", extensionSpec.ScaleSetName)
+				s.Scope.SetCondition(infrav1.BootstrapSucceededCondition, infrav1.BootstrapInProgressReason, clusterv1.ConditionSeverityInfo, false)
+				return errors.New("extension still provisioning")
+			case compute.ProvisioningStateFailed:
+				s.Scope.V(4).Info("extension provisioning state is failed", "vm extension", extensionSpec.Name, "scale set", extensionSpec.ScaleSetName)
+				s.Scope.SetCondition(infrav1.BootstrapSucceededCondition, infrav1.BootstrapFailedReason, clusterv1.ConditionSeverityError, false)
+				return errors.New("extension state failed")
+			}
+		} else if !azure.ResourceNotFound(err) {
+			return errors.Wrapf(err, "failed to get vm extension %s on scale set %s", extensionSpec.Name, extensionSpec.ScaleSetName)
 		}
 
-		s.Scope.V(2).Info("creating VMSS extension", "vssm extension", extensionSpec.Name)
-		err := s.client.CreateOrUpdate(
-			ctx,
-			s.Scope.ResourceGroup(),
-			extensionSpec.ScaleSetName,
-			extensionSpec.Name,
-			compute.VirtualMachineScaleSetExtension{
-				VirtualMachineScaleSetExtensionProperties: &compute.VirtualMachineScaleSetExtensionProperties{
-					Publisher:          to.StringPtr(extensionSpec.Publisher),
-					Type:               to.StringPtr(extensionSpec.Name),
-					TypeHandlerVersion: to.StringPtr(extensionSpec.Version),
-					Settings:           nil,
-					ProtectedSettings:  nil,
-				},
-			},
-		)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create VMSS extension %s on scale set %s in resource group %s", extensionSpec.Name, extensionSpec.ScaleSetName, s.Scope.ResourceGroup())
-		}
-		s.Scope.V(2).Info("successfully created VMSS extension", "vm extension", extensionSpec.Name)
+		//  Nothing else to do here, the extensions are applied to the model as part of the scale set Reconcile.
 	}
 	return nil
 }

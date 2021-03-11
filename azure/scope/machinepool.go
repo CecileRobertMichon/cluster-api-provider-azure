@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/cluster-api/util/conditions"
 
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/go-logr/logr"
@@ -257,6 +259,15 @@ func (m *MachinePoolScope) SetFailureMessage(v error) {
 // SetFailureReason sets the AzureMachinePool status failure reason.
 func (m *MachinePoolScope) SetFailureReason(v capierrors.MachineStatusError) {
 	m.AzureMachinePool.Status.FailureReason = &v
+}
+
+// SetCondition sets a condition on the AzureMachinePool.
+func (m *MachinePoolScope) SetCondition(condition clusterv1.ConditionType, reason string, severity clusterv1.ConditionSeverity, value bool) {
+	if value {
+		conditions.MarkTrue(m.AzureMachinePool, condition)
+	} else {
+		conditions.MarkFalse(m.AzureMachinePool, condition, reason, severity, "")
+	}
 }
 
 // AdditionalTags merges AdditionalTags from the scope's AzureCluster and AzureMachinePool. If the same key is present in both,
