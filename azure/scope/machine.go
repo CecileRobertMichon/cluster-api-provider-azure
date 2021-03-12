@@ -394,6 +394,31 @@ func (m *MachineScope) SetCondition(condition clusterv1.ConditionType, reason st
 	}
 }
 
+func (m *MachineScope) UpdateStatus() {
+	switch m.VMState() {
+	case infrav1.VMStateSucceeded:
+		m.V(2).Info("VM is running", "id", m.GetVMID())
+		conditions.MarkTrue(m.AzureMachine, infrav1.VMRunningCondition)
+	case infrav1.VMStateCreating:
+		m.V(2).Info("VM is creating", "id", m.GetVMID())
+		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMCreatingReason, clusterv1.ConditionSeverityInfo, "")
+	case infrav1.VMStateUpdating:
+		m.V(2).Info("VM is updating", "id", m.GetVMID())
+		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMUpdatingReason, clusterv1.ConditionSeverityInfo, "")
+	case infrav1.VMStateDeleting:
+		m.Info("Unexpected VM deletion", "id", m.GetVMID())
+		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMDeletingReason, clusterv1.ConditionSeverityWarning, "")
+	case infrav1.VMStateFailed:
+		m.Error(errors.New("Failed to create or update VM"), "VM is in failed state", "id", m.GetVMID())
+		m.SetFailureReason(capierrors.UpdateMachineError)
+		m.SetFailureMessage(errors.Errorf("Azure VM state is %s", m.VMState()))
+		conditions.MarkFalse(m.AzureMachine, infrav1.VMRunningCondition, infrav1.VMProvisionFailedReason, clusterv1.ConditionSeverityError, "")
+	default:
+		m.V(2).Info("VM state is undefined", "id", m.GetVMID())
+		conditions.MarkUnknown(m.AzureMachine, infrav1.VMRunningCondition, "", "")
+	}
+}
+
 // SetAnnotation sets a key value annotation on the AzureMachine.
 func (m *MachineScope) SetAnnotation(key, value string) {
 	if m.AzureMachine.Annotations == nil {
